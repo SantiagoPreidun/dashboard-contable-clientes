@@ -1,0 +1,42 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+# 1. Configuración de la Página
+st.set_page_config(page_title="Portal de Activos - Estudio Contable", layout="wide")
+st.title("📊 Gestión Inteligente de Bienes de Uso")
+st.markdown(f"**Cliente:** PREIDUN MENENDEZ SANTIAGO NAHUEL")
+
+# 2. Datos extraídos por el Agente (Simulados del JSON anterior)
+data = {
+    "Activo": "MAVERICK TREMOR 2.0L",
+    "Fecha Compra": "2025-09-09",
+    "Valor Origen": 59500000,
+    "Vida Útil (años)": 5,
+    "IVA Crédito": 5653846
+}
+
+# 3. Métricas Principales (KPIs)
+col1, col2, col3 = st.columns(3)
+col1.metric("Inversión Total", f"${data['Valor Origen']:,.2f}")
+col2.metric("IVA Recuperable", f"${data['IVA Crédito']:,.2f}", delta="Crédito Fiscal")
+col3.metric("Vida Útil", f"{data['Vida Útil (años)']} Años")
+
+st.divider()
+
+# 4. Lógica de Amortización Proyectada
+años = list(range(2025, 2025 + data['Vida Útil (años)'] + 1))
+valores = [data['Valor Origen'] - (i * (data['Valor Origen'] / data['Vida Útil (años)'])) for i in range(len(años))]
+
+df_amort = pd.DataFrame({"Año": años, "Valor Contable": valores})
+
+# 5. Visualización Avanzada
+st.subheader("📈 Proyección de Valor Residual y Amortización")
+fig = px.area(df_amort, x="Año", y="Valor Contable", 
+              title="Depreciación Lineal del Activo",
+              color_discrete_sequence=['#00CC96'])
+st.plotly_chart(fig, use_container_width=True)
+
+# 6. Tabla de Detalles para el Cliente
+st.subheader("📋 Detalle del Activo")
+st.table(pd.DataFrame([data]))
