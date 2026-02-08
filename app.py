@@ -18,7 +18,7 @@ try:
     
     # Configuramos Gemini
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
 except Exception as e:
     st.error(f"Faltan configuraciones en los Secrets: {e}")
     st.stop()
