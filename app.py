@@ -5,21 +5,20 @@ from pyairtable import Table
 import google.generativeai as genai
 from PIL import Image
 import json
-import io
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Gestión Contable IA", layout="wide")
 
-# --- 2. CARGA DE CREDENCIALES ---
+# --- 2. CARGA DE CREDENCIALES Y CONFIGURACIÓN DE IA ---
 try:
     AIRTABLE_API_KEY = st.secrets["AIRTABLE_API_KEY"]
     BASE_ID = st.secrets["BASE_ID"]
     TABLE_NAME = st.secrets["TABLE_NAME"]
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     
-    # Configuración de Gemini con el nombre de modelo corregido
+    # Configuración de Gemini con el nombre de modelo estándar para evitar error 404
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
     st.error(f"⚠️ Error en configuración de Secrets: {e}")
     st.stop()
@@ -40,7 +39,7 @@ def cargar_datos_dashboard():
         records = table.all()
         return pd.DataFrame([r['fields'] for r in records]) if records else pd.DataFrame()
     except Exception as e:
-        st.error(f"❌ Error al leer datos: {e}")
+        st.error(f"❌ Error al leer datos de Airtable: {e}")
         return pd.DataFrame()
 
 # --- 4. BARRA LATERAL: CARGA CON IA ---
@@ -54,7 +53,7 @@ if archivo_subido:
         with st.sidebar:
             with st.spinner("Leyendo comprobante..."):
                 try:
-                    # Convertir archivo subido a imagen compatible con Gemini
+                    # Convertir archivo para Gemini
                     image_data = Image.open(archivo_subido)
                     
                     prompt = """
@@ -69,7 +68,7 @@ if archivo_subido:
                     
                     response = model.generate_content([prompt, image_data])
                     
-                    # Limpiar el formato de texto de la IA (por si incluye ```json)
+                    # Limpiar el formato de texto de la IA por si incluye bloques de código
                     texto_limpio = response.text.replace('```json', '').replace('```', '').strip()
                     st.session_state['datos_ia'] = json.loads(texto_limpio)
                     st.success("✅ Datos extraídos correctamente.")
@@ -84,8 +83,11 @@ if 'datos_ia' in st.session_state:
         f_cliente = st.text_input("Cliente", value=datos.get("Cliente", ""))
         f_activo = st.text_input("Activo", value=datos.get("Activo", ""))
         f_fecha = st.text_input("Fecha", value=datos.get("Fecha", ""))
-        f_monto = st.number_input("Monto Neto", value=float(datos.get("Monto", 0)))
-        f_iva = st.number_input("IVA", value=float(datos.get("IVA", 0)))
+        # Aseguramos que los números sean float para el formulario
+        m_valor = float(datos.get("Monto", 0))
+        i_valor = float(datos.get("IVA", 0))
+        f_monto = st.number_input("Monto Neto", value=m_valor)
+        f_iva = st.number_input("IVA", value=i_valor)
         
         if st.form_submit_button("🚀 Confirmar y Subir"):
             nueva_fila = {
@@ -99,7 +101,9 @@ if 'datos_ia' in st.session_state:
             }
             if guardar_en_airtable(nueva_fila):
                 st.balloons()
-                del st.session_state['datos_ia']
+                # Limpiar memoria de la IA tras guardar con éxito
+                if 'datos_ia' in st.session_state:
+                    del st.session_state['datos_ia']
                 st.rerun()
 
 # --- 5. DASHBOARD PRINCIPAL ---
@@ -121,8 +125,7 @@ if not df.empty:
     st.markdown("### 📊 Inversión por Cliente")
     if 'Cliente' in df.columns and 'Valor_Origen' in df.columns:
         fig = px.bar(df, x="Cliente", y="Valor_Origen", color="Activo", 
-                     title="Distribución de Activos", barmode="group",
-                     template="plotly_dark")
+                     title="Distribución de Activos", barmode="group")
         st.plotly_chart(fig, use_container_width=True)
 
     # Tabla Detallada
