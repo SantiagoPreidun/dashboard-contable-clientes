@@ -16,9 +16,10 @@ try:
     TABLE_NAME = st.secrets["TABLE_NAME"]
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     
-    # Configuración de Gemini con el nombre de modelo estándar para evitar error 404
+    # CONFIGURACIÓN ROBUSTA: Forzamos el nombre completo del modelo estable
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Usamos gemini-1.5-flash-latest que es la versión más aceptada globalmente
+    model = genai.GenerativeModel('gemini-1.5-flash-latest') 
 except Exception as e:
     st.error(f"⚠️ Error en configuración de Secrets: {e}")
     st.stop()
@@ -57,25 +58,29 @@ if archivo_subido:
                     image_data = Image.open(archivo_subido)
                     
                     prompt = """
-                    Actúa como un asistente contable experto. Analiza la imagen y extrae:
-                    1. Cliente (Comprador)
-                    2. Activo (Descripción breve del bien)
-                    3. Fecha (Formato YYYY-MM-DD)
-                    4. Monto (Valor neto sin IVA)
-                    5. IVA (Monto del impuesto)
-                    Devuelve ÚNICAMENTE un objeto JSON con estas llaves: Cliente, Activo, Fecha, Monto, IVA.
+                    Analiza esta imagen de factura y extrae los siguientes datos en formato JSON puro:
+                    {
+                      "Cliente": "Nombre del comprador",
+                      "Activo": "Descripción del bien",
+                      "Fecha": "YYYY-MM-DD",
+                      "Monto": número neto sin IVA,
+                      "IVA": número del IVA
+                    }
+                    Responde solo el JSON.
                     """
                     
+                    # Llamada con manejo de errores específico
                     response = model.generate_content([prompt, image_data])
                     
-                    # Limpiar el formato de texto de la IA por si incluye bloques de código
+                    # Limpieza de la respuesta
                     texto_limpio = response.text.replace('```json', '').replace('```', '').strip()
                     st.session_state['datos_ia'] = json.loads(texto_limpio)
-                    st.success("✅ Datos extraídos correctamente.")
+                    st.success("✅ Datos extraídos.")
                 except Exception as e:
                     st.error(f"❌ Error en la IA: {e}")
+                    st.info("Tip: Verificá que tu GEMINI_API_KEY sea correcta en los Secrets.")
 
-# Formulario de revisión (aparece solo si la IA procesó algo)
+# Formulario de revisión
 if 'datos_ia' in st.session_state:
     datos = st.session_state['datos_ia']
     with st.sidebar.form("formulario_revision"):
@@ -83,11 +88,8 @@ if 'datos_ia' in st.session_state:
         f_cliente = st.text_input("Cliente", value=datos.get("Cliente", ""))
         f_activo = st.text_input("Activo", value=datos.get("Activo", ""))
         f_fecha = st.text_input("Fecha", value=datos.get("Fecha", ""))
-        # Aseguramos que los números sean float para el formulario
-        m_valor = float(datos.get("Monto", 0))
-        i_valor = float(datos.get("IVA", 0))
-        f_monto = st.number_input("Monto Neto", value=m_valor)
-        f_iva = st.number_input("IVA", value=i_valor)
+        f_monto = st.number_input("Monto Neto", value=float(datos.get("Monto", 0)))
+        f_iva = st.number_input("IVA", value=float(datos.get("IVA", 0)))
         
         if st.form_submit_button("🚀 Confirmar y Subir"):
             nueva_fila = {
@@ -101,9 +103,7 @@ if 'datos_ia' in st.session_state:
             }
             if guardar_en_airtable(nueva_fila):
                 st.balloons()
-                # Limpiar memoria de la IA tras guardar con éxito
-                if 'datos_ia' in st.session_state:
-                    del st.session_state['datos_ia']
+                del st.session_state['datos_ia']
                 st.rerun()
 
 # --- 5. DASHBOARD PRINCIPAL ---
