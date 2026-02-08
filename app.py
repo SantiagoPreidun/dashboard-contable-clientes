@@ -5,8 +5,8 @@ from pyairtable import Table
 
 # --- CONFIGURACIÓN DE CONEXIÓN ---
 # Reemplaza 'TU_TOKEN_PAT_AQUI' por el código que empieza con 'pat...' que generaste en Airtable
-AIRTABLE_API_KEY = "TU_TOKEN_PAT_AQUI"
-BASE_ID = "appIRlsUvvKHcxTdt"
+AIRTABLE_API_KEY = "patSRIW6PPjqCObmB"
+BASE_ID = "appzSTRKpPq3xsCbF"
 TABLE_NAME = "Activos" # Asegúrate de que la pestaña en Airtable se llame exactamente Activos
 
 st.set_page_config(page_title="Dashboard Contable IA", layout="wide")
