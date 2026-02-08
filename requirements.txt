@@ -2,3 +2,5 @@ streamlit
 pandas
 plotly
 pyairtable
+google-generativeai
+Pillow
