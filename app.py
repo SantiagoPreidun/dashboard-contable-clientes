@@ -1,32 +1,28 @@
 import streamlit as st
 import pandas as pd
 from pyairtable import Table
-import google.generativeai as genai
+from google import genai
 from PIL import Image
 import json
 
 # --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Gestión Contable IA", layout="wide")
+st.set_page_config(page_title="Gestión Contable IA v3", layout="wide")
 
 try:
-    # Cargamos tus Secrets (Asegúrate de que en Streamlit terminen sin espacios)
+    # Traemos los secretos
     GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
     AIRTABLE_KEY = st.secrets["AIRTABLE_API_KEY"]
     BASE_ID = st.secrets["BASE_ID"]
     TABLE_NAME = st.secrets["TABLE_NAME"]
     
-    # CONFIGURACIÓN DE IA - FORZAMOS VERSION ESTABLE
-    genai.configure(api_key=GEMINI_KEY)
-    
-    # IMPORTANTE: Usamos solo el nombre del modelo. 
-    # La librería se encarga de buscar la versión correcta habilitada.
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Nuevo Cliente de Gemini (SDK Moderno)
+    client = genai.Client(api_key=GEMINI_KEY)
     
 except Exception as e:
     st.error(f"Faltan Secrets o hay un error de carga: {e}")
     st.stop()
 
-# --- 2. CARGA DE FACTURAS (BARRA LATERAL) ---
+# --- 2. BARRA LATERAL: PROCESAMIENTO ---
 st.sidebar.title("📥 Procesador de Facturas")
 archivo = st.sidebar.file_uploader("Subí tu comprobante", type=["png", "jpg", "jpeg"])
 
@@ -35,22 +31,23 @@ if archivo:
         with st.sidebar:
             with st.spinner("IA analizando factura..."):
                 try:
+                    # Abrir imagen para el nuevo SDK
                     img = Image.open(archivo)
-                    # Prompt optimizado
-                    prompt = "Analiza esta factura y devuelve solo JSON: Cliente, Activo, Fecha (YYYY-MM-DD), Monto, IVA."
                     
-                    # Ejecución
-                    response = model.generate_content([prompt, img])
+                    # Llamada con el nuevo formato de cliente
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash", # Usamos la versión estable más potente
+                        contents=["Analiza esta factura y devuelve solo JSON con llaves: Cliente, Activo, Fecha, Monto, IVA.", img]
+                    )
                     
-                    # Limpieza de respuesta
+                    # Limpieza y carga de datos
                     raw_text = response.text.strip().replace('```json', '').replace('```', '')
                     st.session_state['datos_ia'] = json.loads(raw_text)
                     st.success("✅ ¡Datos extraídos!")
                 except Exception as e:
-                    # Este mensaje te dirá si el problema sigue siendo el modelo
                     st.error(f"Error técnico de IA: {e}")
 
-# Formulario para guardar
+# Formulario de guardado (Airtable)
 if 'datos_ia' in st.session_state:
     d = st.session_state['datos_ia']
     with st.sidebar.form("confirmar_datos"):
@@ -77,12 +74,10 @@ if 'datos_ia' in st.session_state:
 # --- 3. DASHBOARD PRINCIPAL ---
 st.title("🏦 Portal de Activos - Gestión Contable")
 
-# Función simple para ver si hay datos
 try:
     recs = Table(AIRTABLE_KEY, BASE_ID, TABLE_NAME).all()
     if recs:
         df = pd.DataFrame([r['fields'] for r in recs])
-        st.metric("Inversión Total", f"${df['Valor_Origen'].sum():,.2f}")
         st.dataframe(df, use_container_width=True)
     else:
         st.info("No hay datos todavía.")
