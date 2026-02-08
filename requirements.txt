@@ -2,5 +2,5 @@ streamlit
 pandas
 plotly
 pyairtable
-google-generativeai
+google-genai
 Pillow
